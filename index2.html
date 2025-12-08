@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Property Central — Live (Next Level)</title>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+/* ---------- Base ---------- */
+:root{
+  --bg:#020915; --panel:#081523; --accent:#00e37d; --muted:#8fb3ff; --card-border:#0d233d;
+  --sub:#07172c; --ticker-bg:#050f1f;
+  --light-bg:#f6f9fc; --light-panel:#fff; --light-text:#0b2030;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:#e9f6ff;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+}
+
+/* Header */
+.header{
+  display:flex;align-items:center;justify-content:space-between;padding:12px 14px;
+  background:#061223;border-bottom:1px solid var(--card-border);position:sticky;top:0;z-index:60;
+}
+.title{font-weight:800;color:var(--accent);font-size:18px}
+.controls{display:flex;gap:8px;align-items:center}
+
+/* Tickers */
+.ticker{background:var(--ticker-bg);color:#00ff99;padding:10px 12px;white-space:nowrap;overflow:hidden;border-bottom:1px solid #112033;font-size:14px}
+.ticker .item{display:inline-block;margin-right:36px}
+.subticker{background:var(--sub);color:#6ee8ff;padding:8px 12px;white-space:nowrap;overflow:hidden;border-bottom:1px solid #0e2b47;font-size:14px}
+.subticker .item{display:inline-block;margin-right:28px}
+
+/* Tabs */
+.tabs{display:flex;gap:10px;padding:10px;overflow-x:auto}
+.tab{
+  padding:8px 14px;border-radius:8px;border:1px solid #0e1b30;color:#8aa6c7;cursor:pointer;white-space:nowrap;font-weight:600
+}
+.tab.active{color:var(--accent);border-color:var(--accent);}
+
+/* Panels */
+.container{padding:12px}
+.panel{background:var(--panel);border-radius:12px;padding:14px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.4)}
+
+/* KPI */
+.kpi{display:flex;flex-wrap:wrap;gap:12px}
+.kpi .item{flex:1 1 180px;background:rgba(255,255,255,0.02);padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.03)}
+.kpi .title{font-size:13px;color:var(--muted)}.kpi .value{font-size:20px;color:var(--accent);font-weight:800}
+
+/* Table */
+.table-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch}
+table{width:100%;min-width:980px;border-collapse:collapse;color:#dce9ff}
+thead{background:#0e1b30;position:sticky;top:0;z-index:20}
+th,td{padding:10px;border-bottom:1px solid #112033;text-align:left;font-size:13px}
+tr:hover{background:rgba(0,255,150,0.03)}
+
+/* Buttons and small controls */
+.btn{background:transparent;border:1px solid rgba(255,255,255,0.06);color:#bfe7ff;padding:6px 10px;border-radius:8px;cursor:pointer}
+.btn.primary{background:linear-gradient(90deg,#00cf99,#00e37d);color:#001219;border:none}
+.small{font-size:12px;padding:6px 8px}
+
+/* Animations / pulses */
+.pulse{animation: pulse 1s ease 0s 3; }
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(0,227,125,0.6)}70%{box-shadow:0 0 0 10px rgba(0,227,125,0)}100%{box-shadow:none}}
+
+/* Highlight new rows */
+.highlight { background: rgba(0,255,150,0.08) !important; transition: background 1.5s ease; }
+
+/* TV mode tweaks */
+.tv-mode .header, .tv-mode .tabs, .tv-mode .controls { display:none }
+.tv-mode body { background: black }
+.tv-overlay {
+  position: fixed; inset: 12px; border-radius: 12px; z-index: 9999; pointer-events:none;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+}
+
+/* Light theme (toggle) */
+.light { background: var(--light-bg); color: var(--light-text) }
+.light .panel { background: var(--light-panel); color: var(--light-text) }
+.light thead { background: #f1f6fb }
+.light .ticker, .light .subticker { background: #e9f9ff; color: #06324a }
+
+/* Responsive tweaks */
+@media(max-width:600px){
+  .kpi .item{flex:1 1 100%}
+  .title{font-size:16px}
+}
+</style>
+</head>
+<body>
+  <div class="header">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="title">📊 Property Central — LIVE (Next Level)</div>
+      <div style="font-size:12px;color:#8fb3ff">Theme: <span id="themeLabel">Dark</span></div>
+    </div>
+
+    <div class="controls">
+      <button id="enableAlertsBtn" class="btn small">Enable Alerts</button>
+      <button id="themeToggle" class="btn small">Toggle Theme</button>
+      <button id="enterTv" class="btn small">Enter TV</button>
+      <select id="refreshSelect" class="small btn" style="background:transparent;border-radius:8px">
+        <option value="5000">Refresh 5s</option>
+        <option value="10000">Refresh 10s</option>
+        <option value="3000">Refresh 3s</option>
+        <option value="1500">TV Fast (1.5s)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Main tickers -->
+  <div id="ticker" class="ticker" aria-hidden="false"><div class="item">Loading…</div></div>
+  <div id="subticker" class="subticker" aria-hidden="false"><div class="item">Loading…</div></div>
+
+  <!-- Tabs -->
+  <div class="tabs" id="tabs">
+    <div class="tab active" data-type="recent">Live</div>
+    <div class="tab" data-type="today">Today</div>
+    <div class="tab" data-type="week">Weekly</div>
+    <div class="tab" data-type="month">Monthly</div>
+    <div class="tab" data-type="all">All</div>
+  </div>
+
+  <div class="container">
+    <div class="panel">
+      <div class="kpi" id="kpis">
+        <div class="item"><div class="title">Today Revenue</div><div id="todayRev" class="value">₹0</div></div>
+        <div class="item"><div class="title">Today Bookings</div><div id="todayBook" class="value">0</div></div>
+        <div class="item"><div class="title">Month Revenue</div><div id="monthRev" class="value">₹0</div></div>
+        <div class="item"><div class="title">Month Bookings</div><div id="monthBook" class="value">0</div></div>
+        <div class="item"><div class="title">Total Revenue</div><div id="totalRev" class="value">₹0</div></div>
+        <div class="item"><div class="title">Total Bookings</div><div id="totalBook" class="value">0</div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <canvas id="chart30" height="160"></canvas>
+    </div>
+
+    <div class="panel">
+      <div class="table-wrap" id="tableWrap">
+        <table id="dataTable" aria-describedby="tableWrap">
+          <thead id="thead"></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ================= CONFIG ================= */
+const API = "https://script.google.com/macros/s/AKfycbxduRAcANBU2QX3Km62d74N11T0x8ukng8FS9jLkoCa8ZAAKXn8UUU1ZTuGECKomWkT/exec"; // <<-- PUT YOUR APPSCRIPT WEB APP URL HERE
+let refreshInterval = 5000;
+let refTimer = null;
+let lastSeenTimestamp = localStorage.getItem('pc_last_ts') || 0;
+let lastRowId = localStorage.getItem('pc_last_rowid') || null;
+let chart30 = null;
+let isTV = false;
+
+/* ================= UTILITIES ================= */
+function fmtINR(v){ return "₹ " + Number(v||0).toLocaleString('en-IN'); }
+function playBeep(){ 
+  try{
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = "sine"; o.frequency.value = 880; g.gain.value = 0.04;
+    o.connect(g); g.connect(ctx.destination);
+    o.start(); setTimeout(()=>{ o.stop(); ctx.close(); }, 160);
+  }catch(e){}
+}
+function showNotification(title, body){
+  if (!("Notification" in window)) return;
+  if (Notification.permission === "granted"){
+    const n = new Notification(title, { body, icon: null });
+    setTimeout(()=>n.close(), 5000);
+  }
+}
+
+/* ================= THEME ================= */
+function applyTheme(isLight){
+  if (isLight){
+    document.documentElement.classList.add('light');
+    document.getElementById('themeLabel').innerText = 'Light';
+  } else {
+    document.documentElement.classList.remove('light');
+    document.getElementById('themeLabel').innerText = 'Dark';
+  }
+  localStorage.setItem('pc_theme', isLight ? 'light' : 'dark');
+}
+document.getElementById('themeToggle').addEventListener('click', ()=> {
+  const cur = localStorage.getItem('pc_theme') === 'light';
+  applyTheme(!cur);
+});
+if (localStorage.getItem('pc_theme') === 'light') applyTheme(true);
+
+/* ================= ALERTS & PERMISSIONS ================= */
+document.getElementById('enableAlertsBtn').addEventListener('click', async ()=>{
+  try{
+    if (Notification && Notification.permission !== 'granted'){
+      await Notification.requestPermission();
+    }
+    // Touch audio context by playing small beep
+    playBeep();
+    document.getElementById('enableAlertsBtn').innerText = 'Alerts ON';
+  }catch(e){}
+});
+
+/* ================= TV / FULLSCREEN ================= */
+document.getElementById('enterTv').addEventListener('click', ()=>enterTVMode());
+async function enterTVMode(){
+  // ask notification perm + allow audio
+  try{ if (Notification && Notification.permission !== 'granted') await Notification.requestPermission(); }catch(e){}
+  // fullscreen
+  const el = document.documentElement;
+  if (el.requestFullscreen) await el.requestFullscreen();
+  document.body.classList.add('tv-mode');
+  isTV = true;
+  // increase refresh
+  setRefreshInterval(1500);
+  // hide UI is done via CSS .tv-mode
+}
+
+/* ================= REFRESH CONTROL ================= */
+document.getElementById('refreshSelect').addEventListener('change',(e)=>{
+  setRefreshInterval(Number(e.target.value));
+});
+function setRefreshInterval(ms){
+  refreshInterval = ms;
+  if (refTimer) clearInterval(refTimer);
+  refTimer = setInterval(loadData, refreshInterval);
+}
+
+/* ================= TABS ================= */
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', e=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    loadData();
+  });
+});
+
+/* ================= RENDERING ================= */
+function renderTickers(propTotalsByAllTime, rowsForTab){
+  // main ticker: lifetime ranking (propTotalsByAllTime)
+  const ticker = document.getElementById('ticker');
+  ticker.innerHTML = Object.keys(propTotalsByAllTime).sort((a,b)=>propTotalsByAllTime[b]-propTotalsByAllTime[a])
+    .map(k=>`<span class="item">${k}: <strong>${fmtINR(propTotalsByAllTime[k])}</strong></span>`).join('');
+  // subticker: totals for the selected tab (rowsForTab)
+  const subt = document.getElementById('subticker');
+  // accumulate per property
+  const t = {};
+  rowsForTab.forEach(r=> t[r.prop] = (t[r.prop]||0) + (Number(r.amount)||0));
+  subt.innerHTML = Object.keys(t).sort((a,b)=>t[b]-t[a])
+    .map(k=>`<span class="item">${k}: <strong>${fmtINR(t[k])}</strong></span>`).join('');
+  // create smooth CSS scroll by animating translateX if many items (optional enhancement)
+}
+
+/* build table + detect new bookings */
+function renderTable(headers, rows){
+  // headers
+  document.getElementById('thead').innerHTML = "<tr>"+headers.map(h=>`<th>${h}</th>`).join('')+"</tr>";
+  // rows
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = ''; // rebuild (fast enough)
+  rows.forEach((r, idx) => {
+    const tr = document.createElement('tr');
+    // r.raw is original raw array
+    tr.innerHTML = r.raw.map((c,i)=> {
+      // Amount index mapping: header.indexOf("Amount")
+      // We'll show currency format for Amount — find index implicitly
+      if (String(headers[i]).toLowerCase().includes('amount')){
+        return `<td>${fmtINR(c)}</td>`;
+      }
+      return `<td>${c||''}</td>`;
+    }).join('');
+    tbody.appendChild(tr);
+  });
+  // auto-scroll table horizontally a bit when in TV mode
+  if (isTV) autoScrollTable();
+}
+
+/* KPIs */
+function renderKPIs(s){
+  document.getElementById('todayRev').innerText = fmtINR(s.todayAmount);
+  document.getElementById('todayBook').innerText = s.todayBookings;
+  document.getElementById('monthRev').innerText = fmtINR(s.monthAmount);
+  document.getElementById('monthBook').innerText = s.monthBookings;
+  document.getElementById('totalRev').innerText = fmtINR(s.totalAmount);
+  document.getElementById('totalBook').innerText = s.totalBookings;
+}
+
+/* chart */
+function renderChart(data){
+  const byDate = {};
+  data.rows.forEach(r=>{
+    if (!r.date) return;
+    byDate[r.date] = (byDate[r.date]||0) + Number(r.amount||0);
+  });
+  const labels = Object.keys(byDate).slice(-30);
+  const values = labels.map(l=>byDate[l]);
+  const ctx = document.getElementById('chart30');
+  if (chart30){
+    chart30.data.labels = labels; chart30.data.datasets[0].data = values; chart30.update();
+  } else {
+    chart30 = new Chart(ctx, {
+      type: 'line',
+      data:{ labels, datasets:[{ data: values, borderColor:'#00ff9a', backgroundColor:'rgba(0,255,150,0.1)', fill:true, tension:0.3 }]},
+      options:{ plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true } } }
+    });
+  }
+}
+
+/* highlight new arrivals: compare newest row timestamp with stored lastSeenTimestamp */
+function detectAndHighlightNew(rows){
+  if (!rows || rows.length===0) return;
+  // assume first row is newest (we sort newest first in backend)
+  const newest = rows[0];
+  const newestTs = newest && newest.dateObj ? newest.dateObj.getTime() : null;
+  if (!newestTs) return;
+  const prev = Number(localStorage.getItem('pc_last_ts') || 0);
+  if (newestTs > prev){
+    // new booking(s) arrived
+    localStorage.setItem('pc_last_ts', newestTs);
+    // UX effects: beep, notification, highlight top rows
+    playBeep();
+    const msg = `New booking in ${newest.prop}: ${newest.amount ? fmtINR(newest.amount) : ''}`;
+    showNotification('New Booking', msg);
+    // add highlight to first row(s)
+    const tbody = document.getElementById('tbody');
+    if (tbody && tbody.firstChild){
+      tbody.firstChild.classList.add('highlight');
+      setTimeout(()=>{ try{ tbody.firstChild.classList.remove('highlight'); }catch(e){} }, 5000);
+    }
+    // Pulse tickers
+    document.getElementById('ticker').classList.add('pulse');
+    document.getElementById('subticker').classList.add('pulse');
+    setTimeout(()=>{ document.getElementById('ticker').classList.remove('pulse'); document.getElementById('subticker').classList.remove('pulse'); }, 1500);
+  }
+}
+
+/* auto-scroll table in TV mode (horizontal gentle pan) */
+let tvScrollTimer = null;
+function autoScrollTable(){
+  if (tvScrollTimer) clearInterval(tvScrollTimer);
+  const wrap = document.getElementById('tableWrap');
+  if (!wrap) return;
+  let dir = 1;
+  tvScrollTimer = setInterval(()=>{
+    wrap.scrollLeft += 1 * dir;
+    // reverse at edges
+    if (wrap.scrollLeft + wrap.clientWidth >= wrap.scrollWidth - 2) dir = -1;
+    if (wrap.scrollLeft <= 0) dir = 1;
+  }, 40);
+}
+
+/* ================= LOAD DATA (from Apps Script) ================= */
+async function loadData(){
+  try{
+    const type = document.querySelector('.tab.active').getAttribute('data-type') || 'recent';
+    const res = await fetch(API + '?type=' + encodeURIComponent(type));
+    const json = await res.json();
+
+    // json.rows contains rows for the selected filter, with .date, .amount, .prop, .raw, .dateObj (Date not serializable over JSON)
+    // But our Apps Script returned date strings; build dateObj here:
+    json.rows.forEach(r => {
+      r.dateObj = (r.date ? new Date(r.date.split('/').reverse().join('-')) : null);
+    });
+
+    // render everything
+    renderTickers(json.propTotals || {}, json.rows || []);
+    renderKPIs(json.summary || {});
+    renderTable(json.headers || [], json.rows || []);
+    renderChart(json);
+    detectAndHighlightNew(json.rows || []);
+
+    // save last timestamp if not set
+    if (!localStorage.getItem('pc_last_ts') && json.rows && json.rows.length){
+      const first = json.rows[0];
+      if (first.date){
+        localStorage.setItem('pc_last_ts', new Date(first.date.split('/').reverse().join('-')).getTime());
+      }
+    }
+  }catch(e){
+    console.error('LoadData error', e);
+  }
+}
+
+/* ================= INIT ================= */
+setRefreshInterval(refreshInterval); // starts timer
+loadData();
+
+/* preserve user theme selection on load */
+if (localStorage.getItem('pc_theme') === 'light') applyTheme(true);
+</script>
+</body>
+</html>
