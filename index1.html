@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Property Central – Live Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body{
+  margin:0;
+  background:#020915;
+  color:#e9f6ff;
+  font-family:"Inter",Arial,sans-serif;
+}
+
+/* HEADER */
+.header{
+  padding:14px;
+  background:#061223;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  position:sticky;
+  top:0;
+  z-index:50;
+  border-bottom:1px solid #0d233d;
+}
+.title{font-size:18px;color:#00e37d;font-weight:700}
+#status{font-size:12px;color:#8fb3ff}
+
+/* MAIN TICKER (existing) */
+.ticker{
+  background:#050f1f;
+  color:#00ff99;
+  padding:12px 0;
+  white-space:nowrap;
+  overflow:hidden;
+  border-bottom:1px solid #112033;
+  font-size:14px;
+}
+.ticker span{margin-right:40px}
+
+/* NEW SECOND TICKER BELOW HEADER */
+.subticker{
+  background:#07172c;
+  color:#6ee8ff;
+  padding:10px 0;
+  white-space:nowrap;
+  overflow:hidden;
+  border-bottom:1px solid #0e2b47;
+  font-size:14px;
+}
+.subticker span{margin-right:30px}
+
+/* TABS */
+.tabs{
+  display:flex;
+  overflow-x:auto;
+  padding:10px;
+  gap:12px;
+}
+.tab{
+  padding:8px 16px;
+  border:1px solid #0e1b30;
+  border-radius:8px;
+  color:#8aa6c7;
+  white-space:nowrap;
+  cursor:pointer;
+  font-size:14px;
+}
+.tab.active{
+  color:#00e37d;
+  border-color:#00e37d;
+  font-weight:700;
+}
+
+/* PANELS */
+.panel{
+  background:#081523;
+  padding:14px;
+  border-radius:12px;
+  margin:14px;
+  box-shadow:0 0 20px rgba(0,255,180,0.05);
+}
+
+/* KPI */
+.kpi{
+  display:flex;
+  justify-content:space-between;
+  margin-bottom:10px;
+  font-size:14px;
+}
+.kpi-value{font-size:20px;font-weight:700;color:#00e37d}
+
+/* TABLE */
+.table-wrap{
+  overflow-x:auto;
+  width:100%;
+  -webkit-overflow-scrolling:touch;
+}
+table{
+  width:100%;
+  border-collapse:collapse;
+  min-width:950px;
+  color:#dce9ff;
+}
+thead{
+  background:#0e1b30;
+  position:sticky;
+  top:0;
+}
+th,td{
+  padding:10px 8px;
+  border-bottom:1px solid #112033;
+  text-align:left;
+  font-size:13px;
+}
+tr:hover{background:rgba(0,255,150,0.05)}
+@media(max-width:600px){th,td{font-size:12px}}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+  <div class="title">📊 Property Central – Live</div>
+  <div id="status">Updating…</div>
+</div>
+
+<!-- TICKER 1: Property Ranking (existing) -->
+<div id="ticker" class="ticker">Loading...</div>
+
+<!-- 🔥 NEW TICKER 2: Property Revenue according to selected tab -->
+<div id="subticker" class="subticker">Loading...</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" onclick="setTab('recent',this)">Live</div>
+  <div class="tab" onclick="setTab('today',this)">Today</div>
+  <div class="tab" onclick="setTab('week',this)">Weekly</div>
+  <div class="tab" onclick="setTab('month',this)">Monthly</div>
+  <div class="tab" onclick="setTab('all',this)">All</div>
+</div>
+
+<!-- KPI PANEL -->
+<div class="panel">
+  <div class="kpi"><span>Today Revenue</span><span id="todayRev" class="kpi-value">₹0</span></div>
+  <div class="kpi"><span>Today Bookings</span><span id="todayBook">0</span></div>
+  <div class="kpi"><span>This Month Revenue</span><span id="monthRev" class="kpi-value">₹0</span></div>
+  <div class="kpi"><span>This Month Bookings</span><span id="monthBook">0</span></div>
+  <div class="kpi"><span>Total Revenue</span><span id="totalRev" class="kpi-value">₹0</span></div>
+  <div class="kpi"><span>Total Bookings</span><span id="totalBook">0</span></div>
+</div>
+
+<!-- CHART -->
+<div class="panel">
+  <canvas id="chart30" height="140"></canvas>
+</div>
+
+<!-- TABLE -->
+<div class="panel">
+  <div class="table-wrap">
+    <table>
+      <thead id="thead"></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const API = "https://script.google.com/macros/s/AKfycbxduRAcANBU2QX3Km62d74N11T0x8ukng8FS9jLkoCa8ZAAKXn8UUU1ZTuGECKomWkT/exec";
+let currentTab="recent", chart30=null;
+
+function fmtINR(n){ return "₹ "+Number(n).toLocaleString("en-IN"); }
+
+function setTab(t,el){
+  currentTab=t;
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+  el.classList.add("active");
+  loadData();
+}
+
+async function loadData(){
+  document.getElementById("status").innerText="Updating…";
+  try{
+    const res=await fetch(API+"?type="+currentTab);
+    const data=await res.json();
+
+    renderTicker(data.propTotals);
+    renderSubTicker(data.rows);
+
+    renderSummary(data.summary);
+    renderTable(data.headers,data.rows);
+    renderChart(data);
+
+    document.getElementById("status").innerText="Live";
+  }catch(e){
+    document.getElementById("status").innerText="Error";
+  }
+}
+
+/* ========== TICKER 1: Property totals (lifetime) ========== */
+function renderTicker(map){
+  const t=document.getElementById("ticker");
+  t.innerHTML=Object.keys(map)
+    .sort((a,b)=>map[b]-map[a])
+    .map(k=>`<span>${k}: <b>${fmtINR(map[k])}</b></span>`)
+    .join('');
+}
+
+/* 
+   🔥 NEW TICKER 2:
+   Shows revenue per property for selected tab 
+*/
+function renderSubTicker(rows){
+  const sub=document.getElementById("subticker");
+
+  const totals={};
+  rows.forEach(r=>{
+    totals[r.prop]=(totals[r.prop]||0)+r.amount;
+  });
+
+  sub.innerHTML=Object.keys(totals)
+    .sort((a,b)=>totals[b]-totals[a])
+    .map(k=>`<span>${k}: <b>${fmtINR(totals[k])}</b></span>`)
+    .join('');
+}
+
+/* SUMMARY */
+function renderSummary(s){
+  document.getElementById("todayRev").innerText=fmtINR(s.todayAmount);
+  document.getElementById("todayBook").innerText=s.todayBookings;
+
+  document.getElementById("monthRev").innerText=fmtINR(s.monthAmount);
+  document.getElementById("monthBook").innerText=s.monthBookings;
+
+  document.getElementById("totalRev").innerText=fmtINR(s.totalAmount);
+  document.getElementById("totalBook").innerText=s.totalBookings;
+}
+
+/* TABLE */
+function renderTable(headers,rows){
+  document.getElementById("thead").innerHTML=
+    "<tr>"+headers.map(h=>`<th>${h}</th>`).join("")+"</tr>";
+
+  document.getElementById("tbody").innerHTML=
+    rows.map(r=>`
+      <tr>
+        ${r.raw.map((c,i)=>
+           i===8?`<td>${fmtINR(c)}</td>`:`<td>${c||""}</td>`
+        ).join("")}
+      </tr>
+    `).join("");
+}
+
+/* CHART */
+function renderChart(data){
+  const byDate={};
+  data.rows.forEach(r=>{
+    if(!byDate[r.date]) byDate[r.date]=0;
+    byDate[r.date]+=r.amount;
+  });
+
+  const labels=Object.keys(byDate).slice(-30);
+  const values=labels.map(l=>byDate[l]);
+
+  const ctx=document.getElementById("chart30");
+  if(chart30){
+    chart30.data.labels=labels;
+    chart30.data.datasets[0].data=values;
+    chart30.update();
+  }else{
+    chart30=new Chart(ctx,{
+      type:"line",
+      data:{
+        labels:labels,
+        datasets:[{
+          data:values,
+          borderColor:"#00ff9a",
+          backgroundColor:"rgba(0,255,150,0.12)",
+          fill:true,tension:.35
+        }]
+      },
+      options:{
+        plugins:{legend:{display:false}},
+        scales:{
+          y:{beginAtZero:true,grid:{color:"#1a2a40"}},
+          x:{grid:{color:"#1a2a40"}}
+        }
+      }
+    });
+  }
+}
+
+/* AUTO REFRESH */
+setInterval(loadData, 4000);
+loadData();
+</script>
+</body>
+</html>
