@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Property Central - Live Dashboard</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body{
+  margin:0;background:#020915;color:#e8f8ff;font-family:Arial;
+}
+.header{
+  padding:15px;background:#071422;display:flex;justify-content:space-between;align-items:center;
+  position:sticky;top:0;z-index:10;
+}
+.title{font-size:18px;font-weight:bold;color:#00d37a}
+.tabs{display:flex;gap:10px;margin-top:10px;overflow-x:auto;padding:10px}
+.tab{padding:8px 14px;border-radius:8px;border:1px solid #0e1b30;color:#8aa6c7;cursor:pointer}
+.tab.active{border-color:#00d37a;color:#00d37a;font-weight:bold}
+
+/* -------------------- NEW: continuous ticker scroll -------------------- */
+.ticker{
+  white-space:nowrap;overflow:hidden;padding:12px;background:#050f1f;
+  color:#00e390;border-bottom:1px solid #112033;font-size:14px;
+}
+.ticker-inner{
+  display:inline-block;
+  white-space:nowrap;
+  animation: scroll 25s linear infinite;
+}
+@keyframes scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+/* ------------------------------------------------------------------------ */
+
+.ticker span{margin-right:40px}
+
+.section{padding:10px}
+.panel{
+  background:#081523;padding:12px;border-radius:10px;margin-bottom:15px;
+  box-shadow:0 0 15px rgba(0,0,0,0.4);
+}
+.kpi{display:flex;justify-content:space-between;color:#8ab8ff;font-size:14px;margin-bottom:8px}
+.kpi-value{color:#00d37a;font-size:20px;font-weight:bold}
+
+table{width:100%;border-collapse:collapse;font-size:13px;color:#d0e0ff}
+thead{background:#0e1b30;position:sticky;top:0;z-index:5}
+th,td{padding:8px;border-bottom:1px solid #112033;text-align:left}
+
+@media(max-width:600px){
+  th,td{font-size:12px}
+}
+
+/* -------------------- NEW: BLUE LIGHT THEME -------------------- */
+body.light {
+  background:#00244a !important;
+  color:#d8ecff !important;
+}
+body.light .panel{
+  background:#003a70 !important;
+  color:#d8ecff !important;
+}
+body.light thead{
+  background:#004b90 !important;
+}
+body.light .tab{
+  border-color:#1c4d87 !important;
+  color:#c8e2ff !important;
+}
+body.light .tab.active{
+  border-color:#5cd0ff !important;
+  color:#5cd0ff !important;
+}
+/* ---------------------------------------------------------------- */
+</style>
+</head>
+
+<body>
+
+<div class="header">
+  <div class="title">📈 Property Central Live</div>
+  <div id="status" style="color:#7fa6ff;font-size:12px">Updating…</div>
+</div>
+
+<!-- UPDATED ticker wrapper -->
+<div id="ticker" class="ticker"><div class="ticker-inner">Loading...</div></div>
+
+<div class="tabs">
+  <div class="tab active" onclick="setTab('recent', this)">Live</div>
+  <div class="tab" onclick="setTab('today', this)">Today</div>
+  <div class="tab" onclick="setTab('week', this)">Weekly</div>
+  <div class="tab" onclick="setTab('month', this)">Monthly</div>
+  <div class="tab" onclick="setTab('all', this)">All</div>
+</div>
+
+<div class="section">
+  <div class="panel">
+    <div class="kpi"><span>Today Revenue</span><span id="todayRev" class="kpi-value">₹0</span></div>
+    <div class="kpi"><span>Today Bookings</span><span id="todayBook">0</span></div>
+    <div class="kpi"><span>This Month Revenue</span><span id="monthRev" class="kpi-value">₹0</span></div>
+    <div class="kpi"><span>This Month Bookings</span><span id="monthBook">0</span></div>
+    <div class="kpi"><span>Total Revenue</span><span id="totalRev" class="kpi-value">₹0</span></div>
+    <div class="kpi"><span>Total Bookings</span><span id="totalBook">0</span></div>
+  </div>
+
+  <div class="panel">
+    <canvas id="chart30" height="130"></canvas>
+  </div>
+
+  <div class="panel">
+    <table id="table">
+      <thead id="thead"></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const API = "YOUR_URL_HERE";
+let currentTab = "recent";
+let chart30 = null;
+
+function setTab(t, el){
+  currentTab = t;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  el.classList.add('active');
+  loadData();
+}
+
+function fmtINR(x){
+  return "₹ "+Number(x).toLocaleString("en-IN");
+}
+
+async function loadData(){
+  try{
+    document.getElementById("status").innerText = "Updating…";
+
+    const res = await fetch(API+"?type="+currentTab);
+    const data = await res.json();
+
+    renderTicker(data.propTotals);
+    renderSummary(data.summary);
+    renderTable(data.headers, data.rows);
+    renderChart(data);
+
+    document.getElementById("status").innerText = "Live";
+
+  }catch(e){
+    document.getElementById("status").innerText = "Error";
+  }
+}
+
+/* -------------------- UPDATED renderTicker (continuous scroll) -------------------- */
+function renderTicker(map){
+  const t = document.getElementById("ticker");
+  const items = Object.keys(map)
+      .sort((a,b)=>map[b]-map[a])
+      .map(k=>`<span>${k}: <b>${fmtINR(map[k])}</b></span>`).join('');
+
+  // duplicate list for perfect infinite loop
+  t.innerHTML = `<div class="ticker-inner">${items + items}</div>`;
+}
+/* ----------------------------------------------------------------------------- */
+
+function renderSummary(s){
+  document.getElementById("todayRev").innerText = fmtINR(s.todayAmount);
+  document.getElementById("todayBook").innerText = s.todayBookings;
+  document.getElementById("monthRev").innerText = fmtINR(s.monthAmount);
+  document.getElementById("monthBook").innerText = s.monthBookings;
+  document.getElementById("totalRev").innerText = fmtINR(s.totalAmount);
+  document.getElementById("totalBook").innerText = s.totalBookings;
+}
+
+function renderTable(headers, rows){
+  const th = document.getElementById("thead");
+  const tb = document.getElementById("tbody");
+
+  th.innerHTML = "<tr>"+headers.map(h=>`<th>${h}</th>`).join("")+"</tr>";
+
+  tb.innerHTML = rows.map(r=>`
+    <tr>
+      ${r.raw.map((c,i)=> 
+        i===8 ? `<td>${fmtINR(c)}</td>` : `<td>${c||""}</td>`
+      ).join("")}
+    </tr>
+  `).join("");
+}
+
+function renderChart(data){
+  const byDate = {};
+  data.rows.forEach(r=>{
+    if(!byDate[r.date]) byDate[r.date]=0;
+    byDate[r.date]+=r.amount;
+  });
+
+  const labels = Object.keys(byDate).slice(-30);
+  const values = labels.map(l=>byDate[l]);
+
+  const ctx = document.getElementById("chart30");
+
+  if(chart30){
+    chart30.data.labels = labels;
+    chart30.data.datasets[0].data = values;
+    chart30.update();
+  }else{
+    chart30 = new Chart(ctx,{
+      type:"line",
+      data:{
+        labels:labels,
+        datasets:[{
+          data:values,
+          borderColor:"#00d37a",
+          backgroundColor:"rgba(0,211,122,0.1)",
+          fill:true,
+          tension:0.3
+        }]
+      },
+      options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}
+    });
+  }
+}
+
+setInterval(loadData, 5000);
+loadData();
+</script>
+
+</body>
+</html>
