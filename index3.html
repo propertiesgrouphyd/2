@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Property Central — Live (Next Level)</title>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+/* ---------- Base ---------- */
+:root{
+  --bg:#020915; --panel:#081523; --accent:#00e37d; --muted:#8fb3ff; --card-border:#0d233d;
+  --sub:#07172c; --ticker-bg:#050f1f;
+  --light-bg:#f6f9fc; --light-panel:#fff; --light-text:#0b2030;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:#e9f6ff;
+  -webkit-font-smoothing:antiliated;-moz-osx-font-smoothing:grayscale;
+}
+
+/* Header */
+.header{
+  display:flex;align-items:center;justify-content:space-between;padding:12px 14px;
+  background:#061223;border-bottom:1px solid var(--card-border);position:sticky;top:0;z-index:60;
+}
+.title{font-weight:800;color:var(--accent);font-size:18px}
+.controls{display:flex;gap:8px;align-items:center}
+
+/* Tickers */
+.ticker{background:var(--ticker-bg);color:#00ff99;padding:10px 12px;white-space:nowrap;overflow:hidden;border-bottom:1px solid #112033;font-size:14px}
+.ticker .item{display:inline-block;margin-right:36px}
+.subticker{background:var(--sub);color:#6ee8ff;padding:8px 12px;white-space:nowrap;overflow:hidden;border-bottom:1px solid #0e2b47;font-size:14px}
+.subticker .item{display:inline-block;margin-right:28px}
+
+/* Tabs */
+.tabs{display:flex;gap:10px;padding:10px;overflow-x:auto}
+.tab{
+  padding:8px 14px;border-radius:8px;border:1px solid #0e1b30;color:#8aa6c7;cursor:pointer;white-space:nowrap;font-weight:600
+}
+.tab.active{color:var(--accent);border-color:var(--accent);}
+
+/* Panels */
+.container{padding:12px}
+.panel{background:var(--panel);border-radius:12px;padding:14px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.4)}
+
+/* KPI */
+.kpi{display:flex;flex-wrap:wrap;gap:12px}
+.kpi .item{flex:1 1 180px;background:rgba(255,255,255,0.02);padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.03)}
+.kpi .title{font-size:13px;color:var(--muted)}.kpi .value{font-size:20px;color:var(--accent);font-weight:800}
+
+/* Table */
+.table-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch}
+table{width:100%;min-width:980px;border-collapse:collapse;color:#dce9ff}
+thead{background:#0e1b30;position:sticky;top:0;z-index:20}
+th,td{padding:10px;border-bottom:1px solid #112033;text-align:left;font-size:13px}
+tr:hover{background:rgba(0,255,150,0.03)}
+
+/* Buttons and small controls */
+.btn{background:transparent;border:1px solid rgba(255,255,255,0.06);color:#bfe7ff;padding:6px 10px;border-radius:8px;cursor:pointer}
+.btn.primary{background:linear-gradient(90deg,#00cf99,#00e37d);color:#001219;border:none}
+.small{font-size:12px;padding:6px 8px}
+
+/* Animations / pulses */
+.pulse{animation: pulse 1s ease 0s 3; }
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(0,227,125,0.6)}70%{box-shadow:0 0 0 10px rgba(0,227,125,0)}100%{box-shadow:none}}
+
+/* Highlight new rows */
+.highlight { background: rgba(0,255,150,0.08) !important; transition: background 1.5s ease; }
+
+/* TV mode */
+.tv-mode .header, .tv-mode .tabs, .tv-mode .controls { display:none }
+
+/* Light theme */
+.light { background: var(--light-bg); color: var(--light-text) }
+.light .panel { background: var(--light-panel); color: var(--light-text) }
+.light thead { background: #f1f6fb }
+.light .ticker, .light .subticker { background: #e9f9ff; color: #06324a }
+
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div style="display:flex;align-items:center;gap:12px">
+    <div class="title">📊 Property Central — LIVE (Next Level)</div>
+    <div style="font-size:12px;color:#8fb3ff">Theme: <span id="themeLabel">Dark</span></div>
+  </div>
+
+  <div class="controls">
+    <button id="enableAlertsBtn" class="btn small">Enable Alerts</button>
+    <button id="themeToggle" class="btn small">Toggle Theme</button>
+    <button id="enterTv" class="btn small">Enter TV</button>
+    <select id="refreshSelect" class="small btn">
+      <option value="5000">Refresh 5s</option>
+      <option value="10000">Refresh 10s</option>
+      <option value="3000">Refresh 3s</option>
+      <option value="1500">TV Fast (1.5s)</option>
+    </select>
+  </div>
+</div>
+
+<!-- TICKERS -->
+<div id="ticker" class="ticker"><div class="item">Loading…</div></div>
+<div id="subticker" class="subticker"><div class="item">Loading…</div></div>
+
+<!-- TABS -->
+<div class="tabs" id="tabs">
+  <div class="tab active" data-type="recent">Live</div>
+  <div class="tab" data-type="today">Today</div>
+  <div class="tab" data-type="week">Weekly</div>
+  <div class="tab" data-type="month">Monthly</div>
+  <div class="tab" data-type="all">All</div>
+</div>
+
+<div class="container">
+
+  <!-- KPIs -->
+  <div class="panel">
+    <div class="kpi">
+      <div class="item"><div class="title">Today Revenue</div><div id="todayRev" class="value">₹0</div></div>
+      <div class="item"><div class="title">Today Bookings</div><div id="todayBook" class="value">0</div></div>
+      <div class="item"><div class="title">Month Revenue</div><div id="monthRev" class="value">₹0</div></div>
+      <div class="item"><div class="title">Month Bookings</div><div id="monthBook" class="value">0</div></div>
+      <div class="item"><div class="title">Total Revenue</div><div id="totalRev" class="value">₹0</div></div>
+      <div class="item"><div class="title">Total Bookings</div><div id="totalBook" class="value">0</div></div>
+    </div>
+  </div>
+
+  <!-- CHART -->
+  <div class="panel">
+    <canvas id="chart30" height="160"></canvas>
+  </div>
+
+  <!-- TABLE -->
+  <div class="panel">
+    <div class="table-wrap" id="tableWrap">
+      <table id="dataTable">
+        <thead id="thead"></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ================= INDIA TIME HELPERS ================= */
+function toIST(dateString){
+  if(!dateString) return null;
+  const d = new Date(dateString);
+  return new Date(d.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }));
+}
+function fmtDateIST(d){
+  if(!d) return "";
+  return d.getDate().toString().padStart(2,'0') + "/" +
+         (d.getMonth()+1).toString().padStart(2,'0') + "/" +
+         d.getFullYear();
+}
+function fmtINR(v){
+  return "₹ " + Number(v||0).toLocaleString('en-IN');
+}
+
+/* ================= CONFIG ================= */
+const API = "https://script.google.com/macros/s/AKfycbxduRAcANBU2QX3Km62d74N11T0x8ukng8FS9jLkoCa8ZAAKXn8UUU1ZTuGECKomWkT/exec";
+let refreshInterval = 5000;
+let refTimer=null;
+let lastSeenTimestamp = Number(localStorage.getItem("pc_last_ts") || 0);
+let isTV=false;
+let chart30=null;
+
+/* ================= LOAD DATA ================= */
+async function loadData(){
+  try{
+    const type=document.querySelector('.tab.active').dataset.type;
+    const res=await fetch(`${API}?type=${type}`);
+    const json=await res.json();
+
+    // convert dates to IST
+    json.rows.forEach(r=>{
+      r.dateObj = toIST(r.date);
+      r.date = fmtDateIST(r.dateObj);
+    });
+
+    renderTickers(json.propTotals,json.rows);
+    renderKPIs(json.summary);
+    renderTable(json.headers,json.rows);
+    renderChart(json);
+    detectNew(json.rows);
+  }catch(e){
+    console.error("Error",e);
+  }
+}
+
+/* ================= RENDERING ================= */
+function renderTickers(allTotals,rows){
+  const t=document.getElementById("ticker");
+  t.innerHTML = Object.entries(allTotals)
+    .sort((a,b)=>b[1]-a[1])
+    .map(([p,v])=>`<span class="item">${p}: <strong>${fmtINR(v)}</strong></span>`).join('');
+
+  const st=document.getElementById("subticker");
+  const temp={};
+  rows.forEach(r=>{ temp[r.prop]=(temp[r.prop]||0)+(Number(r.amount)||0) });
+  st.innerHTML = Object.entries(temp)
+    .sort((a,b)=>b[1]-a[1])
+    .map(([p,v])=>`<span class="item">${p}: <strong>${fmtINR(v)}</strong></span>`).join('');
+}
+
+function renderKPIs(s){
+  document.getElementById("todayRev").innerText=fmtINR(s.todayAmount);
+  document.getElementById("todayBook").innerText=s.todayBookings;
+  document.getElementById("monthRev").innerText=fmtINR(s.monthAmount);
+  document.getElementById("monthBook").innerText=s.monthBookings;
+  document.getElementById("totalRev").innerText=fmtINR(s.totalAmount);
+  document.getElementById("totalBook").innerText=s.totalBookings;
+}
+
+function renderTable(headers,rows){
+  document.getElementById("thead").innerHTML =
+    "<tr>"+headers.map(h=>`<th>${h}</th>`).join("")+"</tr>";
+  const tb=document.getElementById("tbody");
+  tb.innerHTML="";
+  rows.forEach(r=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=r.raw.map((c,i)=>{
+      if(headers[i].toLowerCase()=="amount") return `<td>${fmtINR(c)}</td>`;
+      return `<td>${c||""}</td>`;
+    }).join("");
+    tb.appendChild(tr);
+  });
+}
+
+function renderChart(json){
+  const map={};
+  json.rows.forEach(r=>{
+    const d=r.date;
+    map[d]=(map[d]||0)+(Number(r.amount)||0);
+  });
+  const labels=Object.keys(map).slice(-30);
+  const data=labels.map(l=>map[l]);
+  if(chart30){
+    chart30.data.labels=labels;
+    chart30.data.datasets[0].data=data;
+    chart30.update();
+  }else{
+    chart30=new Chart(document.getElementById("chart30"),{
+      type:"line",
+      data:{labels,datasets:[{data,borderColor:"#00ff9a",fill:true,backgroundColor:"rgba(0,255,150,0.1)"}]},
+      options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}
+    });
+  }
+}
+
+/* ================= NEW BOOKING DETECTION ================= */
+function detectNew(rows){
+  if(!rows || !rows.length) return;
+  const newest=rows[0];
+  const ts=newest.dateObj?.getTime()||0;
+  if(ts>lastSeenTimestamp){
+    lastSeenTimestamp=ts;
+    localStorage.setItem("pc_last_ts",ts);
+    playBeep();
+    notify("New Booking",`New booking in ${newest.prop} - ${fmtINR(newest.amount)}`);
+  }
+}
+
+function playBeep(){
+  try{
+    const a=new (AudioContext||webkitAudioContext)();
+    const o=a.createOscillator();
+    const g=a.createGain();
+    o.connect(g);g.connect(a.destination);
+    o.frequency.value=900;g.gain.value=0.04;
+    o.start();setTimeout(()=>{o.stop();a.close();},150);
+  }catch(e){}
+}
+
+function notify(title,body){
+  if(Notification.permission==="granted"){
+    const n=new Notification(title,{body});
+    setTimeout(()=>n.close(),4000);
+  }
+}
+
+/* ================= THEME ================= */
+document.getElementById("themeToggle").onclick=()=>{
+  const isLight=document.documentElement.classList.toggle("light");
+  document.getElementById("themeLabel").innerText=isLight?"Light":"Dark";
+};
+
+/* ================= REFRESH ================= */
+document.getElementById("refreshSelect").onchange=(e)=>{
+  refreshInterval=Number(e.target.value);
+  clearInterval(refTimer);
+  refTimer=setInterval(loadData,refreshInterval);
+};
+
+/* ================= TV MODE ================= */
+document.getElementById("enterTv").onclick=async()=>{
+  const el=document.documentElement;
+  if(el.requestFullscreen) await el.requestFullscreen();
+  document.body.classList.add("tv-mode");
+  clearInterval(refTimer);
+  refTimer=setInterval(loadData,1500);
+};
+
+/* ================= INIT ================= */
+document.getElementById("enableAlertsBtn").onclick=()=>{
+  Notification.requestPermission();
+  playBeep();
+};
+loadData();
+refTimer=setInterval(loadData,refreshInterval);
+
+</script>
+</body>
+</html>
